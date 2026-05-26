@@ -418,13 +418,11 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
 /* 3D VIEW */
 #vr-wrap{text-align:center;padding:6px 0}
 #vr-badge{display:inline-block;background:var(--emerald);color:var(--gold);font-size:9px;letter-spacing:2px;padding:4px 10px;margin-bottom:12px}
-#vr-scene{width:220px;height:220px;margin:0 auto 12px;perspective:700px;cursor:grab;position:relative}
+#vr-scene{width:220px;height:220px;margin:0 auto 12px;cursor:grab;position:relative;overflow:hidden;border-radius:2px}
 #vr-scene:active{cursor:grabbing}
-#vr-object{width:100%;height:100%;transform-style:preserve-3d;animation:vrSpin 9s linear infinite;position:relative}
-.vr-face{position:absolute;inset:0;backface-visibility:hidden;overflow:hidden;background:var(--emerald)}
-.vr-face img{width:100%;height:100%;object-fit:cover;display:block}
-#vr-back{transform:rotateY(180deg)}
-@keyframes vrSpin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
+#vr-object{width:100%;height:100%;animation:vrSpin 9s linear infinite;background:var(--emerald)}
+#vr-object img{width:100%;height:100%;object-fit:cover;display:block}
+@keyframes vrSpin{from{transform:perspective(500px) rotateY(0deg)}to{transform:perspective(500px) rotateY(360deg)}}
 #vr-hint{font-size:10px;letter-spacing:1.5px;color:var(--ink-muted);margin:8px 0 10px}
 #vr-auto-btn{background:transparent;border:0.5px solid rgba(27,58,47,0.25);color:var(--emerald);padding:8px 16px;font-size:10px;letter-spacing:1.5px;cursor:pointer;font-family:var(--sans);transition:all 0.25s}
 #vr-auto-btn:hover{background:var(--emerald);color:var(--cream)}
@@ -526,8 +524,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
           <div id="vr-badge">3D VIEW &middot; VIRTUAL REALITY</div>
           <div id="vr-scene">
             <div id="vr-object">
-              <div class="vr-face"><img id="vr-img-front" src="" alt=""></div>
-              <div class="vr-face" id="vr-back"><img id="vr-img-back" src="" alt=""></div>
+              <img id="vr-img-front" src="" alt="" style="width:100%;height:100%;object-fit:cover;display:block">
             </div>
           </div>
           <p id="vr-hint">DRAG TO ROTATE &middot; TOUCH TO SPIN</p>
@@ -631,7 +628,6 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
     document.getElementById('tryon-perm-denied').style.display='none';
 
     document.getElementById('vr-img-front').src=imgSrc;
-    document.getElementById('vr-img-back').src=imgSrc;
     reset3D();
 
     document.getElementById('pdp-overlay').classList.add('open');
@@ -837,22 +833,22 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
     var dragging=false, startX=0, manualAngle=0;
     scene.addEventListener('mousedown',function(e){
       e.preventDefault(); dragging=true; startX=e.clientX;
-      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
+      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='perspective(500px) rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
     });
     window.addEventListener('mousemove',function(e){
       if(!dragging) return;
       manualAngle+=(e.clientX-startX)*0.5; startX=e.clientX;
-      obj.style.transform='rotateY('+manualAngle+'deg)';
+      obj.style.transform='perspective(500px) rotateY('+manualAngle+'deg)';
     });
     window.addEventListener('mouseup',function(){ dragging=false; });
     scene.addEventListener('touchstart',function(e){
       dragging=true; startX=e.touches[0].clientX;
-      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
+      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='perspective(500px) rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
     },{passive:true});
     window.addEventListener('touchmove',function(e){
       if(!dragging) return;
       manualAngle+=(e.touches[0].clientX-startX)*0.5; startX=e.touches[0].clientX;
-      obj.style.transform='rotateY('+manualAngle+'deg)';
+      obj.style.transform='perspective(500px) rotateY('+manualAngle+'deg)';
     },{passive:true});
     window.addEventListener('touchend',function(){ dragging=false; });
     document.getElementById('vr-auto-btn').onclick=function(){
