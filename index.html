@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -418,11 +418,11 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
 /* 3D VIEW */
 #vr-wrap{text-align:center;padding:6px 0}
 #vr-badge{display:inline-block;background:var(--emerald);color:var(--gold);font-size:9px;letter-spacing:2px;padding:4px 10px;margin-bottom:12px}
-#vr-scene{width:220px;height:220px;margin:0 auto 12px;cursor:grab;position:relative;overflow:hidden;border-radius:2px}
+#vr-scene{width:220px;height:220px;margin:0 auto 14px;cursor:grab;position:relative;border-radius:2px}
 #vr-scene:active{cursor:grabbing}
-#vr-object{width:100%;height:100%;animation:vrSpin 9s linear infinite;background:var(--emerald)}
+#vr-object{width:100%;height:100%;background:var(--emerald);transform-origin:center center}
 #vr-object img{width:100%;height:100%;object-fit:cover;display:block}
-@keyframes vrSpin{from{transform:perspective(500px) rotateY(0deg)}to{transform:perspective(500px) rotateY(360deg)}}
+
 #vr-hint{font-size:10px;letter-spacing:1.5px;color:var(--ink-muted);margin:8px 0 10px}
 #vr-auto-btn{background:transparent;border:0.5px solid rgba(27,58,47,0.25);color:var(--emerald);padding:8px 16px;font-size:10px;letter-spacing:1.5px;cursor:pointer;font-family:var(--sans);transition:all 0.25s}
 #vr-auto-btn:hover{background:var(--emerald);color:var(--cream)}
@@ -637,7 +637,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
   function closePDP(){
     document.getElementById('pdp-overlay').classList.remove('open');
     document.body.style.overflow='';
-    stopTryOn();
+    stopTryOn(); stopVRLoop();
   }
 
   document.getElementById('pdp-close').onclick=closePDP;
@@ -662,7 +662,7 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
       document.querySelectorAll('.tab-panel').forEach(function(p){p.classList.remove('active');});
       this.classList.add('active');
       document.getElementById('tab-'+tab).classList.add('active');
-      if(tab!=='tryon') stopTryOn();
+      if(tab!=='tryon') stopTryOn(); if(tab==='3d'&&!vrRafId) startVRLoop();
     });
   });
 
@@ -816,45 +816,58 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
   }
 
 
-  // ---- THREE.JS 3D VIEW ----
   // ---- 3D SPINNING VIEW ----
-  var vrAuto=true;
+  var vrAngle=0, vrRafId=null, vrAutoSpin=true, vrDragging=false, vrDragX=0, vrDragAngle=0;
+  function applyVRTransform(){
+    var obj=document.getElementById('vr-object');
+    if(obj) obj.style.transform='perspective(500px) rotateY('+vrAngle+'deg)';
+  }
+  function startVRLoop(){
+    if(vrRafId) cancelAnimationFrame(vrRafId);
+    vrRafId=null;
+    (function loop(){
+      if(vrAutoSpin) vrAngle=(vrAngle+0.4)%360;
+      applyVRTransform();
+      vrRafId=requestAnimationFrame(loop);
+    })();
+  }
+  function stopVRLoop(){
+    if(vrRafId){cancelAnimationFrame(vrRafId);vrRafId=null;}
+  }
   function reset3D(){
-    var vo=document.getElementById('vr-object');
-    if(vo){ vo.style.animation='vrSpin 9s linear infinite'; vo.style.transform=''; }
+    vrAngle=0; vrAutoSpin=true;
+    applyVRTransform();
     var btn=document.getElementById('vr-auto-btn');
     if(btn) btn.textContent='↳  PAUSE ROTATION';
-    vrAuto=true;
+    startVRLoop();
   }
   (function(){
     var scene=document.getElementById('vr-scene');
     if(!scene) return;
-    var obj=document.getElementById('vr-object');
-    var dragging=false, startX=0, manualAngle=0;
     scene.addEventListener('mousedown',function(e){
-      e.preventDefault(); dragging=true; startX=e.clientX;
-      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='perspective(500px) rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
+      e.preventDefault(); vrDragging=true; vrDragX=e.clientX; vrDragAngle=vrAngle;
+      if(vrAutoSpin){vrAutoSpin=false;document.getElementById('vr-auto-btn').textContent='↳  START ROTATION';}
     });
     window.addEventListener('mousemove',function(e){
-      if(!dragging) return;
-      manualAngle+=(e.clientX-startX)*0.5; startX=e.clientX;
-      obj.style.transform='perspective(500px) rotateY('+manualAngle+'deg)';
+      if(!vrDragging) return;
+      vrAngle=vrDragAngle+(e.clientX-vrDragX)*0.5;
+      applyVRTransform();
     });
-    window.addEventListener('mouseup',function(){ dragging=false; });
+    window.addEventListener('mouseup',function(){vrDragging=false;});
     scene.addEventListener('touchstart',function(e){
-      dragging=true; startX=e.touches[0].clientX;
-      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='perspective(500px) rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
+      vrDragging=true; vrDragX=e.touches[0].clientX; vrDragAngle=vrAngle;
+      if(vrAutoSpin){vrAutoSpin=false;document.getElementById('vr-auto-btn').textContent='↳  START ROTATION';}
     },{passive:true});
     window.addEventListener('touchmove',function(e){
-      if(!dragging) return;
-      manualAngle+=(e.touches[0].clientX-startX)*0.5; startX=e.touches[0].clientX;
-      obj.style.transform='perspective(500px) rotateY('+manualAngle+'deg)';
+      if(!vrDragging) return;
+      vrAngle=vrDragAngle+(e.touches[0].clientX-vrDragX)*0.5;
+      applyVRTransform();
     },{passive:true});
-    window.addEventListener('touchend',function(){ dragging=false; });
+    window.addEventListener('touchend',function(){vrDragging=false;});
     document.getElementById('vr-auto-btn').onclick=function(){
-      vrAuto=!vrAuto;
-      if(vrAuto){ obj.style.animation='vrSpin 9s linear infinite'; obj.style.transform=''; this.textContent='↳  PAUSE ROTATION'; }
-      else{ obj.style.animation='none'; obj.style.transform='rotateY(0deg)'; this.textContent='↳  START ROTATION'; }
+      vrAutoSpin=!vrAutoSpin;
+      if(vrAutoSpin){this.textContent='↳  PAUSE ROTATION';if(!vrRafId)startVRLoop();}
+      else this.textContent='↳  START ROTATION';
     };
   })();
 })();
