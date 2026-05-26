@@ -132,7 +132,6 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
   .footer-grid{grid-template-columns:1fr 1fr;gap:32px}
   .footer-bottom{flex-direction:column;gap:8px;text-align:center}
 }
-<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
 </style>
 </head>
 <body>
@@ -418,9 +417,14 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
 #tryon-scan-line{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--gold),transparent);animation:arScan 2s linear infinite;z-index:6;pointer-events:none}
 /* 3D VIEW */
 #vr-wrap{text-align:center;padding:6px 0}
-#vr-badge{display:inline-block;background:var(--emerald);color:var(--gold);font-size:9px;letter-spacing:2px;padding:4px 10px;margin-bottom:10px}
-#vr-canvas{display:block;width:100%;cursor:grab;border-radius:2px}
-#vr-canvas:active{cursor:grabbing}
+#vr-badge{display:inline-block;background:var(--emerald);color:var(--gold);font-size:9px;letter-spacing:2px;padding:4px 10px;margin-bottom:12px}
+#vr-scene{width:220px;height:220px;margin:0 auto 12px;perspective:700px;cursor:grab;position:relative}
+#vr-scene:active{cursor:grabbing}
+#vr-object{width:100%;height:100%;transform-style:preserve-3d;animation:vrSpin 9s linear infinite;position:relative}
+.vr-face{position:absolute;inset:0;backface-visibility:hidden;overflow:hidden;background:var(--emerald)}
+.vr-face img{width:100%;height:100%;object-fit:cover;display:block}
+#vr-back{transform:rotateY(180deg)}
+@keyframes vrSpin{from{transform:rotateY(0)}to{transform:rotateY(360deg)}}
 #vr-hint{font-size:10px;letter-spacing:1.5px;color:var(--ink-muted);margin:8px 0 10px}
 #vr-auto-btn{background:transparent;border:0.5px solid rgba(27,58,47,0.25);color:var(--emerald);padding:8px 16px;font-size:10px;letter-spacing:1.5px;cursor:pointer;font-family:var(--sans);transition:all 0.25s}
 #vr-auto-btn:hover{background:var(--emerald);color:var(--cream)}
@@ -520,8 +524,13 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
       <div id="tab-3d" class="tab-panel">
         <div id="vr-wrap">
           <div id="vr-badge">3D VIEW &middot; VIRTUAL REALITY</div>
-          <canvas id="vr-canvas"></canvas>
-          <p id="vr-hint">DRAG TO ROTATE &middot; SCROLL TO ZOOM</p>
+          <div id="vr-scene">
+            <div id="vr-object">
+              <div class="vr-face"><img id="vr-img-front" src="" alt=""></div>
+              <div class="vr-face" id="vr-back"><img id="vr-img-back" src="" alt=""></div>
+            </div>
+          </div>
+          <p id="vr-hint">DRAG TO ROTATE &middot; TOUCH TO SPIN</p>
           <button id="vr-auto-btn">&#8635; &nbsp;PAUSE ROTATION</button>
         </div>
       </div>
@@ -621,7 +630,9 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
     document.getElementById('tryon-active').style.display='none';
     document.getElementById('tryon-perm-denied').style.display='none';
 
-    cleanup3D();
+    document.getElementById('vr-img-front').src=imgSrc;
+    document.getElementById('vr-img-back').src=imgSrc;
+    reset3D();
 
     document.getElementById('pdp-overlay').classList.add('open');
     document.body.style.overflow='hidden';
@@ -656,7 +667,6 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
       this.classList.add('active');
       document.getElementById('tab-'+tab).classList.add('active');
       if(tab!=='tryon') stopTryOn();
-      if(tab==='3d'&&current) requestAnimationFrame(function(){ requestAnimationFrame(function(){ init3DScene(current.tryType); }); });
     });
   });
 
@@ -811,81 +821,46 @@ body{font-family:var(--sans);color:var(--ink);background:var(--cream);line-heigh
 
 
   // ---- THREE.JS 3D VIEW ----
-  var vrRenderer=null, vrAnimId=null, vrAutoRotate=true;
-
-  function cleanup3D(){
-    if(vrAnimId){cancelAnimationFrame(vrAnimId);vrAnimId=null;}
-    if(vrRenderer){vrRenderer.dispose();vrRenderer=null;}
+  // ---- 3D SPINNING VIEW ----
+  var vrAuto=true;
+  function reset3D(){
+    var vo=document.getElementById('vr-object');
+    if(vo){ vo.style.animation='vrSpin 9s linear infinite'; vo.style.transform=''; }
+    var btn=document.getElementById('vr-auto-btn');
+    if(btn) btn.textContent='↳  PAUSE ROTATION';
+    vrAuto=true;
   }
-
-  function init3DScene(productType){
-    cleanup3D();
-    if(typeof THREE==='undefined') return;
-    var canvas=document.getElementById('vr-canvas');
-    if(!canvas) return;
-    var W=Math.max(canvas.parentElement?canvas.parentElement.offsetWidth:0,300), H=260;
-    vrRenderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
-    vrRenderer.setClearColor(0xFAF7F1,1);
-    vrRenderer.setPixelRatio(1);
-    vrRenderer.setSize(W,H,true);
-    var scene=new THREE.Scene();
-    var camera=new THREE.PerspectiveCamera(45,W/H,0.1,100);
-    camera.position.set(0,0.5,3.8);
-    scene.add(new THREE.AmbientLight(0xfff8f0,0.7));
-    var d1=new THREE.DirectionalLight(0xfff5e0,1.4); d1.position.set(3,5,4); scene.add(d1);
-    var d2=new THREE.DirectionalLight(0xe8f0ff,0.6); d2.position.set(-3,2,-2); scene.add(d2);
-    var p1=new THREE.PointLight(0xB8956A,1.2,12); p1.position.set(1,2,3); scene.add(p1);
-    var p2=new THREE.PointLight(0xffffff,0.5,8); p2.position.set(-1,-1,-3); scene.add(p2);
-    var goldMat=new THREE.MeshStandardMaterial({color:0xD4A843,metalness:0.95,roughness:0.12});
-    var platMat=new THREE.MeshStandardMaterial({color:0xD0D0DC,metalness:0.98,roughness:0.08});
-    var dMat=new THREE.MeshPhongMaterial({color:0xE8F4FF,transparent:true,opacity:0.88,shininess:600,specular:new THREE.Color(1,1,1),side:THREE.DoubleSide});
-    var dFacet=new THREE.MeshPhongMaterial({color:0xCCE0FF,transparent:true,opacity:0.6,shininess:400,specular:new THREE.Color(1,1,1)});
-    var metal=(productType==='ring')?platMat:goldMat;
-    var group=new THREE.Group();
-
-    if(productType==='earring'){
-      [-0.62,0.62].forEach(function(x){
-        var eg=new THREE.Group(); eg.position.x=x;
-        var post=new THREE.Mesh(new THREE.CylinderGeometry(0.022,0.022,0.28,8),metal); post.position.y=0.9; eg.add(post);
-        var stud=new THREE.Mesh(new THREE.SphereGeometry(0.1,16,12),dMat); stud.position.y=0.68; eg.add(stud);
-        var sr=new THREE.Mesh(new THREE.TorusGeometry(0.1,0.022,8,16),metal); sr.rotation.x=Math.PI/2; sr.position.y=0.68; eg.add(sr);
-        var lk=new THREE.Mesh(new THREE.TorusGeometry(0.055,0.018,8,12),metal); lk.position.y=0.44; eg.add(lk);
-        var pm=new THREE.Mesh(new THREE.ConeGeometry(0.21,0.62,8,1),dMat); pm.rotation.x=Math.PI; pm.position.y=0.03; eg.add(pm);
-        var fi=new THREE.Mesh(new THREE.OctahedronGeometry(0.14,0),dFacet); fi.position.y=-0.02; fi.scale.set(1,1.6,0.8); eg.add(fi);
-        var pb=new THREE.Mesh(new THREE.TorusGeometry(0.21,0.024,8,20),metal); pb.rotation.x=Math.PI/2; pb.position.y=0.21; eg.add(pb);
-        group.add(eg);
-      });
-      group.position.y=-0.2;
-    }else if(productType==='ring'){
-      var band=new THREE.Mesh(new THREE.TorusGeometry(0.72,0.09,20,120),metal); band.rotation.x=Math.PI/2; group.add(band);
-      [{x:0,y:0.74,sx:1.0,sy:1.36,sz:0.68},{x:-0.38,y:0.66,sx:0.73,sy:1.0,sz:0.5},{x:0.38,y:0.66,sx:0.73,sy:1.0,sz:0.5}].forEach(function(sp){
-        var st=new THREE.Mesh(new THREE.SphereGeometry(0.22,16,12),dMat); st.position.set(sp.x,sp.y,0); st.scale.set(sp.sx,sp.sy,sp.sz); group.add(st);
-        var fc=new THREE.Mesh(new THREE.OctahedronGeometry(0.12,0),dFacet); fc.position.set(sp.x,sp.y,0); fc.scale.set(sp.sx*1.1,sp.sy*1.9*0.5,sp.sz*0.9); group.add(fc);
-        var cl=new THREE.Mesh(new THREE.TorusGeometry(0.22*sp.sx,0.024,8,20),metal); cl.position.set(sp.x,sp.y-0.06,0); cl.rotation.x=Math.PI/2; cl.scale.z=sp.sz/sp.sx; group.add(cl);
-      });
-      group.rotation.x=0.28;
-    }else if(productType==='pendant'){
-      var bl=new THREE.Mesh(new THREE.TorusGeometry(0.1,0.026,8,20),metal); bl.position.y=0.8; group.add(bl);
-      var bs=new THREE.Mesh(new THREE.CylinderGeometry(0.032,0.032,0.22,8),metal); bs.position.y=0.56; group.add(bs);
-      var bz=new THREE.Mesh(new THREE.TorusGeometry(0.3,0.038,10,32),metal); bz.rotation.x=Math.PI/2; bz.position.y=0.12; bz.scale.x=0.72; group.add(bz);
-      var ov=new THREE.Mesh(new THREE.SphereGeometry(0.3,20,16),dMat); ov.position.y=0.12; ov.scale.set(0.72,1.2,0.42); group.add(ov);
-      var of2=new THREE.Mesh(new THREE.OctahedronGeometry(0.22,1),dFacet); of2.position.y=0.12; of2.scale.set(0.56,1.0,0.34); group.add(of2);
-      group.position.y=-0.3;
-    }
-
-    scene.add(group);
-    var isDrag=false,px=0,py=0;
-    canvas.addEventListener('mousedown',function(e){isDrag=true;px=e.clientX;py=e.clientY;vrAutoRotate=false;document.getElementById('vr-auto-btn').textContent='↳  START ROTATION';});
-    window.addEventListener('mousemove',function(e){if(!isDrag)return;group.rotation.y+=(e.clientX-px)*0.012;group.rotation.x+=(e.clientY-py)*0.008;px=e.clientX;py=e.clientY;});
-    window.addEventListener('mouseup',function(){isDrag=false;});
-    canvas.addEventListener('touchstart',function(e){isDrag=true;px=e.touches[0].clientX;py=e.touches[0].clientY;vrAutoRotate=false;},{passive:true});
-    canvas.addEventListener('touchmove',function(e){if(!isDrag)return;group.rotation.y+=(e.touches[0].clientX-px)*0.012;group.rotation.x+=(e.touches[0].clientY-py)*0.008;px=e.touches[0].clientX;py=e.touches[0].clientY;},{passive:true});
-    window.addEventListener('touchend',function(){isDrag=false;});
-    canvas.addEventListener('wheel',function(e){camera.position.z=Math.max(1.8,Math.min(6,camera.position.z+e.deltaY*0.005));e.preventDefault();},{passive:false});
-    document.getElementById('vr-auto-btn').onclick=function(){vrAutoRotate=!vrAutoRotate;this.textContent=vrAutoRotate?'↳  PAUSE ROTATION':'↳  START ROTATION';};
-    vrAutoRotate=true;
-    (function animate(){vrAnimId=requestAnimationFrame(animate);if(vrAutoRotate)group.rotation.y+=0.008;vrRenderer.render(scene,camera);})();
-  }
+  (function(){
+    var scene=document.getElementById('vr-scene');
+    if(!scene) return;
+    var obj=document.getElementById('vr-object');
+    var dragging=false, startX=0, manualAngle=0;
+    scene.addEventListener('mousedown',function(e){
+      e.preventDefault(); dragging=true; startX=e.clientX;
+      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
+    });
+    window.addEventListener('mousemove',function(e){
+      if(!dragging) return;
+      manualAngle+=(e.clientX-startX)*0.5; startX=e.clientX;
+      obj.style.transform='rotateY('+manualAngle+'deg)';
+    });
+    window.addEventListener('mouseup',function(){ dragging=false; });
+    scene.addEventListener('touchstart',function(e){
+      dragging=true; startX=e.touches[0].clientX;
+      if(vrAuto){ vrAuto=false; obj.style.animation='none'; obj.style.transform='rotateY(0deg)'; manualAngle=0; document.getElementById('vr-auto-btn').textContent='↳  START ROTATION'; }
+    },{passive:true});
+    window.addEventListener('touchmove',function(e){
+      if(!dragging) return;
+      manualAngle+=(e.touches[0].clientX-startX)*0.5; startX=e.touches[0].clientX;
+      obj.style.transform='rotateY('+manualAngle+'deg)';
+    },{passive:true});
+    window.addEventListener('touchend',function(){ dragging=false; });
+    document.getElementById('vr-auto-btn').onclick=function(){
+      vrAuto=!vrAuto;
+      if(vrAuto){ obj.style.animation='vrSpin 9s linear infinite'; obj.style.transform=''; this.textContent='↳  PAUSE ROTATION'; }
+      else{ obj.style.animation='none'; obj.style.transform='rotateY(0deg)'; this.textContent='↳  START ROTATION'; }
+    };
+  })();
 })();
 </script>
 
